@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./SalahTracker
     env:
       CI: true
     steps:
@@ -20,7 +23,7 @@ jobs:
           node-version: '22'
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -35,12 +38,12 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Build Release APK using Gradle
-        working-directory: android
+        working-directory: ./SalahTracker/android
         run: ./gradlew assembleRelease
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SalahTracker-Release-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: SalahTracker/android/app/build/outputs/apk/release/app-release.apk
           retention-days: 14
