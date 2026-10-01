@@ -1,0 +1,77 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      # Expo prebuild generates the native Android Gradle project from the
+      # JavaScript/TypeScript project. Keeping android/ out of Git makes the
+      # repository smaller and lets CI regenerate native files consistently.
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --non-interactive --no-install
+
+      # Build a real release APK rather than an Android App Bundle (.aab).
+      # The raw APK is then uploaded below.
+      - name: Build release APK with Gradle
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Locate APK
+        id: apk
+        run: |
+          APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+          test -f "$APK_PATH"
+          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload raw APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: salah-tracker-release-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      # A release is convenient for downloading the APK without opening the
+      # Actions run. It is tagged with the exact commit that produced it.
+      - name: Create GitHub Release and attach APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.sha }}
+          name: Salah Tracker APK ${{ github.sha }}
+          body: |
+            Automated release APK built from commit ${{ github.sha }}.
+          files: ${{ steps.apk.outputs.path }}
+          fail_on_unmatched_files: true
+          make_latest: false
